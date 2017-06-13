@@ -1,0 +1,19 @@
+[Unit]
+Description=Maintain a reverseit SSH connection to Monolith
+After=network.target
+
+StartLimitBurst=5
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+# Note: you *should* have your authorized_keys file configured to run reverseit server :<some port>
+# at the other end of the connection
+ExecStart=/usr/local/bin/reverseit --log-level=debug client 127.0.0.1:22 ssh -T $SSH_HOST
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
