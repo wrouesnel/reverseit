@@ -1,0 +1,18 @@
+language: go
+go:
+- '1.8'
+cache:
+  directories:
+  - tools/bin
+script:
+- CONCURRENT_LINTERS=1 LINTER_DEADLINE=180s make all
+- tools/bin/goveralls -coverprofile=cover.out -service=travis-ci"
+deploy:
+  provider: releases
+  api_key:
+    secure: Fxm6zrx4PjQAOU37vfbWO/vMylGOYs0Z+x/trAEbzJmdy50bfL8Fa69AccS/EMM52Uq1/eT8VP1d3MXs8LOcHxklv3SAIz0y3OJ7zzhWEKBoAFfMftoa3VTI4CPi2pb/n0G86Fy27Y92MUWMDfjnAvzMXVP6kYw8qP5pd1u/DncmCzPzm9J+G5JORV34LxhhjBWcaWiR1dkis0DPv62cBsc672FoO5Kog6ZJIKGkDcQB9QnpsBqrGpTDengaKZ5rtW0x/UY+NIXvPw6j1U9rnN+ox2zoGew0fkTyCVe50+uFM4zmVfKVPHn92ee7pGOFrB3zxQwGNi4yaf+U6vN8Ke/bt38ZSpqsxR8E/YY9DxthEDqNhZIulP8JWUTYC3VCzJLzskCUrge4EuT2FSFldhMPKGD9XGjgT8MuDPcWeTbgW3RuQH6S1CWk3XbqYoswdo7SqMGS0L0A8pPEnM+GltQX2g7XRDEMUvB3x9ri7SHXFQ3RCw+vCHxDIkF07qmzghIzU60iDuCBcS//ckwr18XqbZubi7OxvOMEixnes/qRmo+QvBfwXK1+Bj5EumWRwp90KoqkPzfzCzTB03ylUQ89/uNWM99aR6m1TOGV3AB3HW5CjWLD/HN45cjklcEPFenWksklOT99IzwkVkHQ8lxDl3db6JvQAXq7/SxaBHE=
+  file: reverseit.x86_64
+  on:
+    repo: wrouesnel/reverseit
+    branch: master
+    tags: true
