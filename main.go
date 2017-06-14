@@ -24,7 +24,7 @@ func main() {
 	app.Version(Version)
 
 	loglevel := app.Flag("log-level", "Logging Level").Default("info").String()
-	logformat := app.Flag("log-format", "If set use a syslog logger or JSON logging. Example: logger:syslog?appname=bob&local=7 or logger:stdout?json=true. Defaults to stderr.").Default("stderr").String()
+	logformat := app.Flag("log-format", "If set use a syslog logger or JSON logging. Example: logger:syslog?appname=bob&local=7 or logger:stdout?json=true. Defaults to stderr.").Default("logger:stderr").String()
 
 	clientCmd := app.Command("client", "Start in client mode (connects stdio mux to local TCP port")
 	targetAddr := clientCmd.Arg("target", "destination address for incoming TCP connections in host:port format").String()
@@ -34,6 +34,13 @@ func main() {
 
 	stdio := newReadWriteCloser(os.Stdin, os.Stdout, func() error {
 		log.Infoln("Close called on stdio")
+		if serr := os.Stdin.Close(); serr != nil {
+			log.Debugln("Error closing stdin:", serr)
+		}
+
+		if cerr := os.Stdout.Close(); cerr != nil {
+			log.Debugln("Error closing stdout:", cerr)
+		}
 		return nil
 	})
 
@@ -58,6 +65,9 @@ func main() {
 
 // client is run on the side establishing the connection.
 func client(stdio io.ReadWriteCloser, exitCh <-chan os.Signal, log log.Logger, targetAddr string) {
+	// finishCh is closed if the listener process shuts down.
+	finishCh := make(chan struct{})
+
 	// Setup the mux server on stdin
 	ml, merr := yamux.Server(stdio, nil)
 	if merr != nil {
@@ -69,6 +79,7 @@ func client(stdio io.ReadWriteCloser, exitCh <-chan os.Signal, log log.Logger, t
 			stream, aerr := ml.Accept()
 			if aerr != nil {
 				log.Errorln("Error accepting connection on mux:", aerr)
+				close(finishCh)
 				return
 			}
 			log.Debugln("Accepting connection on mux:", stream.RemoteAddr(), "->", stream.LocalAddr())
@@ -82,14 +93,19 @@ func client(stdio io.ReadWriteCloser, exitCh <-chan os.Signal, log log.Logger, t
 		}
 	}()
 
-	<-exitCh
-	if cerr := ml.Close(); cerr != nil {
-		log.Errorln("Error while closing Mux listener:", cerr)
+	select {
+	case <-exitCh:
+		log.Infoln("Exiting on signal.")
+	case <-finishCh:
+		log.Infoln("Exiting due to listener shutdown.")
 	}
 }
 
 // server is run on the side receiving the connection
 func server(stdio io.ReadWriteCloser, exitCh <-chan os.Signal, log log.Logger, listenAddr string) {
+	// finishCh is closed if the listener process shuts down.
+	finishCh := make(chan struct{})
+
 	// Setup the mux session on stdin
 	muxSession, merr := yamux.Client(stdio, nil)
 	if merr != nil {
@@ -107,6 +123,7 @@ func server(stdio io.ReadWriteCloser, exitCh <-chan os.Signal, log log.Logger, l
 			conn, aerr := l.Accept()
 			if aerr != nil {
 				log.Errorln("Error accepting connection:", aerr)
+				close(finishCh)
 				return
 			}
 			log.Debugln("Accepting connection on port:", conn.RemoteAddr(), "->", conn.LocalAddr())
@@ -120,9 +137,11 @@ func server(stdio io.ReadWriteCloser, exitCh <-chan os.Signal, log log.Logger, l
 		}
 	}()
 
-	<-exitCh
-	if cerr := l.Close(); cerr != nil {
-		log.Errorln("Error while closing TCP listener:", cerr)
+	select {
+	case <-exitCh:
+		log.Infoln("Exiting on signal.")
+	case <-finishCh:
+		log.Infoln("Exiting due to listener shutdown.")
 	}
 }
 
